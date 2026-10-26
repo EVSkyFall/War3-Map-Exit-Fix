@@ -1,0 +1,49 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-x86:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Download LLVM-MinGW
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path .tools -Force | Out-Null
+          $archive = '.tools/llvm-mingw.zip'
+          $expected = '45145c035d9246e1de16f1873aa9afa863d93909f4a8f363e2eb38a04031d3c3'
+          while ($true) {
+            try {
+              Invoke-WebRequest 'https://github.com/mstorsjo/llvm-mingw/releases/download/20250613/llvm-mingw-20250613-ucrt-x86_64.zip' -OutFile $archive
+              if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -eq $expected) { break }
+              Write-Warning 'Toolchain download was incomplete or corrupt; downloading again.'
+            } catch {
+              Write-Warning "Toolchain download failed; retrying: $_"
+            }
+            Start-Sleep -Seconds 5
+          }
+          Expand-Archive -LiteralPath $archive -DestinationPath .tools
+      - name: Build plugins and native diagnostics
+        run: python tools/build.py --toolchain .tools/llvm-mingw-20250613-ucrt-x86_64 --tests
+      - name: Package
+        shell: pwsh
+        run: |
+          $version = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME.TrimStart('v') } else { 'dev' }
+          python tools/package.py --version $version
+      - uses: actions/upload-artifact@v4
+        with:
+          name: War3-Map-Exit-Fix-windows-x86
+          path: dist/*
+          if-no-files-found: error

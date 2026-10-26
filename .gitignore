@@ -1,0 +1,17 @@
+/build/
+/dist/
+/.tools/
+/local/
+__pycache__/
+*.pyc
+*.o
+*.obj
+*.exe
+*.dll
+*.mix
+*.dmp
+*.log
+*.w3x
+*.w3m
+*.mpq
+*.zip
